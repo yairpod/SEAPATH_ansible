@@ -3,3 +3,6 @@
 
 ---
 cukinia_command_path: "/usr/sbin/cukinia"
+setup_ovs_command_path: "/usr/bin/setup_ovs.py"
+
+grub_update_command: "update-grub"

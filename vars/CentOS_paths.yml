@@ -3,3 +3,5 @@
 
 ---
 cukinia_command_path: "/usr/local/bin/cukinia"
+setup_ovs_command_path: "/usr/local/bin/setup_ovs.py"
+grub_update_command: "grub2-mkconfig -o /boot/grub2/grub.cfg"

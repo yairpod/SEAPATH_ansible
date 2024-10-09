@@ -17,6 +17,8 @@
   become: true
   roles:
     - debian_physical_machine
+    - backup_restore
+    - vmmgrapi
 - name: Prerequis hypervisor debian
   hosts:
     - hypervisors
@@ -24,6 +26,7 @@
   become: true
   roles:
     - debian_hypervisor
+    - ptp_status_vsock
 
 - name: Add admin user to haclient group
   hosts:
@@ -78,7 +81,9 @@
         - upload_files is defined
         - item.extract is defined and item.extract is true
     - name: run extra commands after upload
-      command: "{{ item }}"
+      shell: "{{ item }}"
+      tags:
+        - skip_ansible_lint
       loop: "{{ commands_to_run_after_upload }}"
       when: commands_to_run_after_upload is defined
 

@@ -1,0 +1,75 @@
+# Copyright (C) 2024, RTE (http://www.rte-france.com)
+# SPDX-License-Identifier: Apache-2.0
+
+---
+- name: "check presence of vm before copy"
+  cluster_vm:
+    command: status
+    name: "{{ item }}"
+  register: presencevm
+- debug:
+    var: presencevm
+    verbosity: 2
+
+- name: Check tmp folder permission
+  file:
+    path: "{{ qcow2tmpuploadfolder }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+  when: qcow2tmpuploadfolder is defined
+
+- block:
+      - name: "Copy {{ item }} system disk on target"
+        copy:
+          src: "{{ vm_file }}"
+          dest: "{{ vm_file_dest }}"
+        vars:
+          ansible_remote_tmp: "{{ qcow2tmpuploadfolder | default(omit) }}"
+        when: disk_copy | default(true) | bool
+      - name: "Create {{ item }}"
+        cluster_vm:
+          name: "{{ item }}"
+          command: create
+          system_image: "{{ vm_file_dest }}"
+          force: true
+          live_migration: "{{ hostvars[item].live_migration | default(false) }}"
+          migration_user: "{{ livemigration_user | default(omit) }}"
+          migrate_to_timeout: "{{ hostvars[item].migrate_to_timeout | default(omit) }}"
+          migration_downtime: "{{ hostvars[item].migration_downtime | default(omit) }}"
+          priority: "{{ hostvars[item].priority | default(omit) }}"
+          enable: "{{ hostvars[item].enable | default(true) }}"
+          pinned_host: "{{ hostvars[item].pinned_host | default(omit) }}"
+          preferred_host: "{{ hostvars[item].preferred_host | default(omit) }}"
+          crm_config_cmd: "{{ hostvars[item].crm_config_cmd | default(omit) }}"
+          xml: >-
+            {{ lookup('file', hostvars[item].xml_path)
+                 if hostvars[item].xml_path is defined
+               else lookup('template',hostvars[item].vm_template,template_vars=dict(vm=hostvars[item]))
+                 if hostvars[item].vm_template is defined
+               else lookup('file',vms_disks_directory + '/' + item + '.xml')
+               | replace('\n', '') }}
+      - name: Remove temporary file
+        file:
+          path: "{{ vm_file_dest }}"
+          state: absent
+      - name: Wait for VM connections
+        wait_for_connection:
+        delegate_to: "{{ item }}"
+        when:
+          - hostvars[item].wait_for_connection is defined
+          - hostvars[item].wait_for_connection
+  vars:
+    vm_file: "{{ hostvars[item].vm_disk | default( (vms_disks_directory|default('')) ~ '/' ~ item ~ '.qcow2') }}"
+    vm_file_dest: "{{ qcow2tmpuploadfolder | default('/tmp') + '/os.qcow2' }}"
+
+  when: presencevm.status == "Undefined" or (hostvars[item].force is defined and hostvars[item].force)
+
+- name: "Define colocation constraints for {{ item }}"
+  cluster_vm:
+    name: "{{ item }}"
+    command: define_colocation
+    strong: "{{ hostvars[item].strong_colocation | default(false) }}"
+    colocated_vms: "{{ hostvars[item].colocated_vms }}"
+  when: hostvars[item].colocated_vms is defined
